@@ -218,3 +218,25 @@ def resolve_lang(requested: str | None, text: str) -> str:
 
 def get_strings(lang: str) -> Strings:
     return STRINGS.get(lang, STRINGS["en"])
+
+
+CHECK_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "required_files": "Required files",
+        "frontmatter": "SKILL frontmatter",
+        "chapter_links": "Chapter links",
+        "chapter_count": "Chapter count",
+        "evidence_coverage": "Evidence coverage",
+    },
+    "zh": {
+        "required_files": "必需文件",
+        "frontmatter": "SKILL 头部格式",
+        "chapter_links": "章节链接",
+        "chapter_count": "章节数量",
+        "evidence_coverage": "证据覆盖",
+    },
+}
+
+
+def check_label(lang: str, key: str) -> str:
+    return CHECK_LABELS.get(lang, CHECK_LABELS["en"]).get(key, key)

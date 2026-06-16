@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 from bookskill_studio.extractor import extract_text
-from bookskill_studio.i18n import Strings, get_strings, resolve_lang
+from bookskill_studio.i18n import Strings, check_label, get_strings, resolve_lang
 from bookskill_studio.validator import validate_skill_dir
 
 
@@ -233,17 +233,12 @@ def compile_sources(
         encoding="utf-8",
     )
     report = validate_skill_dir(output_dir)
-    (output_dir / "validation-report.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=(resolved_lang != "zh")) + "\n",
-        encoding="utf-8",
-    )
-    (output_dir / "validation-report.md").write_text(
-        render_validation_report(report, primary_path, skill_slug, strings),
-        encoding="utf-8",
-    )
-    (output_dir / "validation-report.html").write_text(
-        render_validation_html(report, primary_path, skill_slug, strings, resolved_lang),
-        encoding="utf-8",
+    write_validation_reports(
+        output_dir,
+        report,
+        source_path=primary_path,
+        skill_slug=skill_slug,
+        lang=resolved_lang,
     )
     manifest_payload["validation_score"] = report["score"]
     manifest_payload["validation_ok"] = report["ok"]
@@ -482,9 +477,38 @@ def dedupe_keep_order(items: Iterable[str]) -> list[str]:
     return ordered
 
 
-def render_validation_report(report: dict, source_path: Path, skill_slug: str, strings: Strings) -> str:
+def write_validation_reports(
+    skill_dir: Path,
+    report: dict,
+    *,
+    source_path: Path,
+    skill_slug: str,
+    lang: str,
+) -> None:
+    strings = get_strings(lang)
+    (skill_dir / "validation-report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=(lang != "zh")) + "\n",
+        encoding="utf-8",
+    )
+    (skill_dir / "validation-report.md").write_text(
+        render_validation_report(report, source_path, skill_slug, strings, lang),
+        encoding="utf-8",
+    )
+    (skill_dir / "validation-report.html").write_text(
+        render_validation_html(report, source_path, skill_slug, strings, lang),
+        encoding="utf-8",
+    )
+
+
+def render_validation_report(
+    report: dict,
+    source_path: Path,
+    skill_slug: str,
+    strings: Strings,
+    lang: str,
+) -> str:
     checks = "\n".join(
-        f"- **{name}**: {strings.validation_pass if passed else strings.validation_fail}"
+        f"- **{check_label(lang, name)}**: {strings.validation_pass if passed else strings.validation_fail}"
         for name, passed in report["checks"].items()
     )
     missing = "\n".join(f"- `{item}`" for item in report["missing"]) or f"- {strings.validation_none}"
@@ -514,7 +538,7 @@ def render_validation_html(
 ) -> str:
     rows = "\n".join(
         "<tr>"
-        f"<td>{name}</td>"
+        f"<td>{check_label(lang, name)}</td>"
         f"<td class=\"{'pass' if passed else 'fail'}\">"
         f"{strings.validation_pass if passed else strings.validation_fail}"
         f"</td>"

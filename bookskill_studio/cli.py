@@ -6,7 +6,7 @@ import shutil
 import webbrowser
 from pathlib import Path
 
-from bookskill_studio.compiler import compile_book, update_book
+from bookskill_studio.compiler import compile_book, load_manifest, update_book, write_validation_reports
 from bookskill_studio.doctor import run_doctor
 from bookskill_studio.extractor import SUPPORTED_EXTENSIONS
 from bookskill_studio.installer import install_skill
@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate = subparsers.add_parser("validate", help="Validate a generated skill directory.")
     validate.add_argument("path", help="Path to the generated skill directory.")
+    validate.add_argument("--lang", choices=["en", "zh", "auto"], default="auto", help=lang_help)
 
     install = subparsers.add_parser("install", help="Install a compiled skill into a local agent skill home.")
     install.add_argument("path", help="Path to the compiled skill directory.")
@@ -81,9 +82,7 @@ def main(argv: list[str] | None = None) -> int:
             install_name=args.name,
         )
     if args.command == "validate":
-        report = validate_skill_dir(Path(args.path))
-        print(json.dumps(report, indent=2, ensure_ascii=True))
-        return 0 if report["ok"] else 1
+        return run_validate(Path(args.path), args.lang)
     if args.command == "install":
         destination = install_skill(
             compiled_skill_dir=Path(args.path),
@@ -166,6 +165,29 @@ def run_update(skill_dir: Path, input_path: Path, skill_name: str | None, lang: 
     print(f"[4/4] Finished with score {report['score']}")
     print(f"       Output: {skill_dir}")
     print(f"       Report: {skill_dir / 'validation-report.html'}")
+    return 0 if report["ok"] else 1
+
+
+def run_validate(skill_dir: Path, lang: str) -> int:
+    report = validate_skill_dir(skill_dir)
+    manifest_path = skill_dir / "bookskill-manifest.json"
+    if manifest_path.exists():
+        manifest = load_manifest(skill_dir)
+        source_path = Path(manifest.get("source_path") or skill_dir)
+        skill_slug = manifest.get("name") or skill_dir.name
+        resolved_lang = lang if lang != "auto" else manifest.get("lang", "en")
+    else:
+        source_path = skill_dir
+        skill_slug = skill_dir.name
+        resolved_lang = "en" if lang == "auto" else lang
+    write_validation_reports(
+        skill_dir,
+        report,
+        source_path=source_path,
+        skill_slug=skill_slug,
+        lang=resolved_lang,
+    )
+    print(json.dumps(report, indent=2, ensure_ascii=(resolved_lang != "zh")))
     return 0 if report["ok"] else 1
 
 

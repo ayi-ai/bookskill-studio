@@ -249,6 +249,39 @@ def test_chinese_pipeline(tmp_path: Path) -> None:
     assert report["ok"] is True
 
 
+def test_chinese_validation_report(tmp_path: Path) -> None:
+    source = tmp_path / "chinese-book.md"
+    source.write_text(
+        """# 示例书籍
+
+## 第一章
+
+当团队需要长期复用一本书时，应该先把章节结构整理成可安装的 Skill 包。
+""",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "zh-output"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "bookskill_studio",
+            "run",
+            str(source),
+            "--output",
+            str(output_dir),
+            "--lang",
+            "zh",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    html = (output_dir / "validation-report.html").read_text(encoding="utf-8")
+    assert "校验报告" in html
+    assert "必需文件" in html
+    assert "通过" in html
+
+
 def build_epub_fixture(epub_path: Path) -> None:
     with zipfile.ZipFile(epub_path, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip")
