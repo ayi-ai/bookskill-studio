@@ -11,7 +11,51 @@ from pathlib import Path
 from typing import Iterable
 
 from bookskill_studio.extractor import extract_text
+from bookskill_studio.i18n import Strings, get_strings, resolve_lang
 from bookskill_studio.validator import validate_skill_dir
+
+
+ZH_STOPWORDS = {
+    "一个",
+    "一些",
+    "可以",
+    "我们",
+    "他们",
+    "这个",
+    "那个",
+    "因为",
+    "所以",
+    "如果",
+    "但是",
+    "以及",
+    "进行",
+    "需要",
+    "应该",
+    "必须",
+    "使用",
+    "通过",
+    "对于",
+    "已经",
+    "还是",
+    "就是",
+    "不是",
+    "没有",
+    "什么",
+    "如何",
+    "这样",
+    "那样",
+    "其中",
+    "这种",
+    "那些",
+    "这些",
+    "作为",
+    "成为",
+    "之后",
+    "之前",
+    "然后",
+    "而且",
+    "或者",
+}
 
 
 STOPWORDS = {
@@ -54,11 +98,21 @@ class Chapter:
     body: str
 
 
-def compile_book(input_path: Path, output_dir: Path, skill_name: str | None = None) -> dict:
-    return compile_sources([input_path], output_dir, skill_name)
+def compile_book(
+    input_path: Path,
+    output_dir: Path,
+    skill_name: str | None = None,
+    lang: str = "auto",
+) -> dict:
+    return compile_sources([input_path], output_dir, skill_name, lang=lang)
 
 
-def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str | None = None) -> dict:
+def compile_sources(
+    source_paths: list[Path],
+    output_dir: Path,
+    skill_name: str | None = None,
+    lang: str = "auto",
+) -> dict:
     if not source_paths:
         raise ValueError("At least one source path is required.")
 
@@ -68,12 +122,15 @@ def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str 
         extracted_sources.append((source_path, source_text))
 
     primary_path, primary_text = extracted_sources[0]
+    corpus = build_corpus(extracted_sources)
+    resolved_lang = resolve_lang(lang, corpus)
+    strings = get_strings(resolved_lang)
     title = detect_title(primary_path, primary_text)
-    author = detect_author(primary_text)
+    author = detect_author(primary_text, strings)
     if output_dir.exists():
         shutil.rmtree(output_dir)
-    chapters = detect_chapters(build_corpus(extracted_sources))
-    skill_slug = skill_name or slugify(title)
+    chapters = detect_chapters(corpus, strings, resolved_lang)
+    skill_slug = skill_name or slugify(title, fallback="book-skill")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     chapters_dir = output_dir / "chapters"
@@ -88,17 +145,24 @@ def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str 
     evidence_sections = []
 
     for chapter in chapters:
-        chapter_slug = slugify(chapter.title)
+        chapter_slug = slugify(chapter.title, fallback=f"chapter-{chapter.number:02d}")
         chapter_filename = f"ch{chapter.number:02d}-{chapter_slug}.md"
-        concepts = extract_concepts(chapter.body)
-        rules = extract_rules(chapter.body)
-        summary = summarize(chapter.body)
-        takeaways = concepts[:3] or ["Translate the chapter into concrete actions."]
-        chapter_rows.append((chapter.number, chapter.title, chapter_filename, ", ".join(concepts[:2]) or "core concepts"))
+        concepts = extract_concepts(chapter.body, resolved_lang)
+        rules = extract_rules(chapter.body, resolved_lang, strings)
+        summary = summarize(chapter.body, resolved_lang, strings)
+        takeaways = concepts[:3] or [strings.default_takeaway]
+        chapter_rows.append(
+            (
+                chapter.number,
+                chapter.title,
+                chapter_filename,
+                ", ".join(concepts[:2]) or strings.core_concepts,
+            )
+        )
 
         chapter_path = chapters_dir / chapter_filename
         chapter_path.write_text(
-            render_chapter(chapter, summary, concepts, rules, takeaways),
+            render_chapter(chapter, summary, concepts, rules, takeaways, strings),
             encoding="utf-8",
         )
 
@@ -107,20 +171,22 @@ def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str 
             concept_rows.append(f"- **{concept}** — {summary} (Ch {chapter.number})")
 
         for rule in rules[:3]:
-            cheatsheet_rows.append(f"- When {rule['when']}, do {rule['do']}.")
+            cheatsheet_rows.append(f"- {strings.rule_prefix.format(when=rule['when'], do=rule['do'])}")
 
-        evidence_sections.append(render_evidence_section(chapter, summary, concepts, rules))
+        evidence_sections.append(render_evidence_section(chapter, summary, concepts, rules, strings))
 
     (references_dir / "concepts.md").write_text(
-        "# Concepts\n\n" + "\n".join(dedupe_keep_order(concept_rows)) + "\n",
+        f"# {strings.concepts_title}\n\n" + "\n".join(dedupe_keep_order(concept_rows)) + "\n",
         encoding="utf-8",
     )
     (references_dir / "cheatsheet.md").write_text(
-        "# Cheatsheet\n\n" + "\n".join(dedupe_keep_order(cheatsheet_rows) or ["- Start with the chapter index, then read the matching chapter file."]) + "\n",
+        f"# {strings.cheatsheet_title}\n\n"
+        + "\n".join(dedupe_keep_order(cheatsheet_rows) or [strings.cheatsheet_fallback])
+        + "\n",
         encoding="utf-8",
     )
     (references_dir / "evidence-map.md").write_text(
-        "# Evidence Map\n\n" + "\n\n".join(evidence_sections) + "\n",
+        f"# {strings.evidence_map_title}\n\n" + "\n\n".join(evidence_sections) + "\n",
         encoding="utf-8",
     )
 
@@ -132,65 +198,60 @@ def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str 
             author=author,
             chapters=chapter_rows,
             topic_rows=dedupe_keep_order(topic_rows),
+            strings=strings,
         ),
         encoding="utf-8",
     )
 
     (output_dir / "validation-report.md").write_text(
-        "# Validation Report\n\nPending validation.\n",
+        f"# {strings.validation_title}\n\n{strings.validation_pending}\n",
         encoding="utf-8",
     )
     (output_dir / "validation-report.html").write_text(
-        "<!doctype html><html><body><p>Pending validation.</p></body></html>\n",
+        f"<!doctype html><html lang=\"{resolved_lang}\"><body><p>{strings.validation_pending}</p></body></html>\n",
         encoding="utf-8",
     )
+    manifest_payload = {
+        "name": skill_slug,
+        "title": title,
+        "author": author,
+        "lang": resolved_lang,
+        "source_path": str(primary_path.resolve()),
+        "sources": [str(path.resolve()) for path, _ in extracted_sources],
+        "chapter_count": len(chapters),
+        "generated_at": datetime.now(UTC).isoformat(),
+        "validation_score": None,
+        "validation_ok": None,
+    }
     (output_dir / "bookskill-manifest.json").write_text(
         json.dumps(
-            {
-                "name": skill_slug,
-                "title": title,
-                "author": author,
-                "source_path": str(primary_path.resolve()),
-                "sources": [str(path.resolve()) for path, _ in extracted_sources],
-                "chapter_count": len(chapters),
-                "generated_at": datetime.now(UTC).isoformat(),
-                "validation_score": None,
-                "validation_ok": None,
-            },
+            manifest_payload,
             indent=2,
-            ensure_ascii=True,
+            ensure_ascii=(resolved_lang != "zh"),
         )
         + "\n",
         encoding="utf-8",
     )
     report = validate_skill_dir(output_dir)
     (output_dir / "validation-report.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=True) + "\n",
+        json.dumps(report, indent=2, ensure_ascii=(resolved_lang != "zh")) + "\n",
         encoding="utf-8",
     )
     (output_dir / "validation-report.md").write_text(
-        render_validation_report(report, primary_path, skill_slug),
+        render_validation_report(report, primary_path, skill_slug, strings),
         encoding="utf-8",
     )
     (output_dir / "validation-report.html").write_text(
-        render_validation_html(report, primary_path, skill_slug),
+        render_validation_html(report, primary_path, skill_slug, strings, resolved_lang),
         encoding="utf-8",
     )
+    manifest_payload["validation_score"] = report["score"]
+    manifest_payload["validation_ok"] = report["ok"]
     (output_dir / "bookskill-manifest.json").write_text(
         json.dumps(
-            {
-                "name": skill_slug,
-                "title": title,
-                "author": author,
-                "source_path": str(primary_path.resolve()),
-                "sources": [str(path.resolve()) for path, _ in extracted_sources],
-                "chapter_count": len(chapters),
-                "generated_at": datetime.now(UTC).isoformat(),
-                "validation_score": report["score"],
-                "validation_ok": report["ok"],
-            },
+            manifest_payload,
             indent=2,
-            ensure_ascii=True,
+            ensure_ascii=(resolved_lang != "zh"),
         )
         + "\n",
         encoding="utf-8",
@@ -198,15 +259,21 @@ def compile_sources(source_paths: list[Path], output_dir: Path, skill_name: str 
     return report
 
 
-def update_book(skill_dir: Path, input_path: Path, skill_name: str | None = None) -> dict:
+def update_book(
+    skill_dir: Path,
+    input_path: Path,
+    skill_name: str | None = None,
+    lang: str = "auto",
+) -> dict:
     manifest = load_manifest(skill_dir)
     existing_sources = manifest.get("sources") or [manifest.get("source_path")]
     existing_sources = [Path(source) for source in existing_sources if source]
     merged_sources = dedupe_paths(existing_sources + [input_path])
     target_name = skill_name or manifest.get("name")
+    target_lang = lang if lang != "auto" else manifest.get("lang", "auto")
     staging_dir = Path(tempfile.mkdtemp(prefix=f"{skill_dir.name}-staging-", dir=skill_dir.parent))
     try:
-        report = compile_sources(merged_sources, staging_dir, target_name)
+        report = compile_sources(merged_sources, staging_dir, target_name, lang=target_lang)
         publish_compiled_skill(staging_dir, skill_dir)
         return report
     finally:
@@ -222,12 +289,15 @@ def detect_title(input_path: Path, source_text: str) -> str:
     return input_path.stem.replace("-", " ").title()
 
 
-def detect_author(source_text: str) -> str:
+def detect_author(source_text: str, strings: Strings) -> str:
     match = re.search(r"(?im)^author:\s*(.+)$", source_text)
-    return match.group(1).strip() if match else "Unknown"
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"(?m)^作者[:：]\s*(.+)$", source_text)
+    return match.group(1).strip() if match else strings.unknown_author
 
 
-def detect_chapters(source_text: str) -> list[Chapter]:
+def detect_chapters(source_text: str, strings: Strings, lang: str) -> list[Chapter]:
     lines = source_text.splitlines()
     chapter_markers: list[tuple[int, str]] = []
     for idx, line in enumerate(lines):
@@ -239,6 +309,8 @@ def detect_chapters(source_text: str) -> list[Chapter]:
                 chapter_markers.append((idx, heading_match.group(2).strip()))
         elif re.match(r"(?i)^chapter\s+\d+[:\s-]", stripped):
             chapter_markers.append((idx, stripped))
+        elif re.match(r"^第[0-9一二三四五六七八九十百千]+章", stripped):
+            chapter_markers.append((idx, stripped))
 
     if not chapter_markers:
         paragraphs = [p.strip() for p in source_text.split("\n\n") if p.strip()]
@@ -246,105 +318,154 @@ def detect_chapters(source_text: str) -> list[Chapter]:
         chapters = []
         for index, start in enumerate(range(0, len(paragraphs), chunk_size), start=1):
             body = "\n\n".join(paragraphs[start : start + chunk_size])
-            chapters.append(Chapter(index, f"Section {index}", body))
-        return chapters or [Chapter(1, "Overview", source_text.strip())]
+            chapters.append(Chapter(index, strings.section_title.format(index=index), body))
+        return chapters or [Chapter(1, strings.overview, source_text.strip())]
 
     chapters: list[Chapter] = []
     for number, (start_idx, title) in enumerate(chapter_markers, start=1):
         end_idx = chapter_markers[number][0] if number < len(chapter_markers) else len(lines)
         body = "\n".join(lines[start_idx + 1 : end_idx]).strip()
         if not body:
-            body = "No body text was extracted for this chapter."
+            body = strings.no_body_text
         chapters.append(Chapter(number, title, body))
     return chapters
 
 
-def summarize(body: str) -> str:
-    sentences = re.split(r"(?<=[.!?])\s+", normalize_whitespace(body))
+def summarize(body: str, lang: str, strings: Strings) -> str:
+    if lang == "zh":
+        sentences = [part.strip() for part in re.split(r"(?<=[。！？])", normalize_whitespace(body)) if part.strip()]
+    else:
+        sentences = re.split(r"(?<=[.!?])\s+", normalize_whitespace(body))
     summary = " ".join(sentences[:2]).strip()
-    return summary or "This chapter captures one reusable idea from the source."
+    return summary or strings.default_summary
 
 
-def extract_concepts(body: str) -> list[str]:
+def extract_concepts(body: str, lang: str) -> list[str]:
+    if lang == "zh":
+        tokens = re.findall(r"[\u4e00-\u9fff]{2,8}", body)
+        ranked = Counter(token for token in tokens if token not in ZH_STOPWORDS)
+        return [token for token, _ in ranked.most_common(6)]
     tokens = re.findall(r"\b[a-zA-Z][a-zA-Z-]{3,}\b", body.lower())
     ranked = Counter(token for token in tokens if token not in STOPWORDS)
     concepts = [token.replace("-", " ") for token, _ in ranked.most_common(6)]
     return [concept.title() for concept in concepts]
 
 
-def extract_rules(body: str) -> list[dict[str, str]]:
+def extract_rules(body: str, lang: str, strings: Strings) -> list[dict[str, str]]:
+    if lang == "zh":
+        sentences = [part.strip() for part in re.split(r"(?<=[。！？])", normalize_whitespace(body)) if part.strip()]
+        rules = []
+        for sentence in sentences:
+            if "当" in sentence and ("应该" in sentence or "必须" in sentence):
+                match = re.search(r"当(.+)", sentence)
+                when_part = match.group(1).strip().strip("。") if match else strings.rule_source_conditions
+                do_part = sentence.strip().rstrip("。")
+                rules.append({"when": when_part[:90], "do": do_part[:120]})
+            elif sentence.startswith("使用") or sentence.startswith("优先"):
+                rules.append({"when": strings.rule_when_context, "do": sentence.strip().rstrip("。")[:120]})
+        return rules[:5]
+
     sentences = re.split(r"(?<=[.!?])\s+", normalize_whitespace(body))
     rules = []
     for sentence in sentences:
         lowered = sentence.lower()
         if "when " in lowered and (" should " in lowered or " must " in lowered):
             match = re.search(r"(?i)\bwhen\b(.+)", sentence)
-            when_part = match.group(1).strip().strip(".") if match else "the source conditions apply"
+            when_part = match.group(1).strip().strip(".") if match else strings.rule_source_conditions
             do_part = sentence.strip().rstrip(".")
             rules.append({"when": when_part[:90], "do": do_part[:120]})
         elif lowered.startswith("use ") or lowered.startswith("prefer "):
-            rules.append({"when": "you face the matching context", "do": sentence.strip().rstrip(".")[:120]})
+            rules.append({"when": strings.rule_when_context, "do": sentence.strip().rstrip(".")[:120]})
     return rules[:5]
 
 
-def render_chapter(chapter: Chapter, summary: str, concepts: list[str], rules: list[dict[str, str]], takeaways: list[str]) -> str:
-    concept_lines = "\n".join(f"- **{concept}**: {summary}" for concept in concepts[:4]) or "- **Core Idea**: Review the source chapter for the main concept."
-    rule_lines = "\n".join(f"- When {rule['when']}, do {rule['do']}." for rule in rules[:3]) or "- When details matter, open the source-aligned evidence map first."
-    takeaway_lines = "\n".join(f"1. {item}" for item in takeaways[:3]) or "1. Read the summary before diving into the source."
+def render_chapter(
+    chapter: Chapter,
+    summary: str,
+    concepts: list[str],
+    rules: list[dict[str, str]],
+    takeaways: list[str],
+    strings: Strings,
+) -> str:
+    concept_lines = (
+        "\n".join(f"- **{concept}**: {summary}" for concept in concepts[:4])
+        or f"- **{strings.core_idea}**: {strings.review_source}"
+    )
+    rule_lines = (
+        "\n".join(f"- {strings.rule_prefix.format(when=rule['when'], do=rule['do'])}" for rule in rules[:3])
+        or f"- {strings.rule_fallback}"
+    )
+    takeaway_lines = "\n".join(f"1. {item}" for item in takeaways[:3]) or f"1. {strings.takeaway_read_summary}"
     return (
-        f"# Chapter {chapter.number}: {chapter.title}\n\n"
-        f"## Core Idea\n{summary}\n\n"
-        f"## Frameworks Introduced\n{concept_lines}\n\n"
-        f"## Decision Rules\n{rule_lines}\n\n"
-        f"## Key Takeaways\n{takeaway_lines}\n"
+        f"# {strings.chapter_heading.format(number=chapter.number, title=chapter.title)}\n\n"
+        f"## {strings.core_idea_heading}\n{summary}\n\n"
+        f"## {strings.frameworks_heading}\n{concept_lines}\n\n"
+        f"## {strings.decision_rules_heading}\n{rule_lines}\n\n"
+        f"## {strings.takeaways_heading}\n{takeaway_lines}\n"
     )
 
 
-def render_evidence_section(chapter: Chapter, summary: str, concepts: list[str], rules: list[dict[str, str]]) -> str:
-    concept_line = ", ".join(concepts[:5]) or "Core idea"
-    rule_line = "; ".join(f"When {rule['when']}, do {rule['do']}" for rule in rules[:2]) or "No explicit decision rules detected."
+def render_evidence_section(
+    chapter: Chapter,
+    summary: str,
+    concepts: list[str],
+    rules: list[dict[str, str]],
+    strings: Strings,
+) -> str:
+    concept_line = ", ".join(concepts[:5]) or strings.evidence_core_idea
+    rule_line = (
+        "; ".join(strings.rule_joiner.format(when=rule["when"], do=rule["do"]) for rule in rules[:2])
+        or strings.evidence_no_rules
+    )
     excerpt = normalize_whitespace(chapter.body)[:240]
     return (
         f"## Ch {chapter.number}: {chapter.title}\n\n"
-        f"**Summary:** {summary}\n\n"
-        f"**Concepts:** {concept_line}\n\n"
-        f"**Rules:** {rule_line}\n\n"
-        f"**Source excerpt:** {excerpt}...\n"
+        f"**{strings.evidence_summary}:** {summary}\n\n"
+        f"**{strings.evidence_concepts}:** {concept_line}\n\n"
+        f"**{strings.evidence_rules}:** {rule_line}\n\n"
+        f"**{strings.evidence_excerpt}:** {excerpt}...\n"
     )
 
 
-def render_skill(skill_slug: str, title: str, author: str, chapters: list[tuple[int, str, str, str]], topic_rows: list[str]) -> str:
+def render_skill(
+    skill_slug: str,
+    title: str,
+    author: str,
+    chapters: list[tuple[int, str, str, str]],
+    topic_rows: list[str],
+    strings: Strings,
+) -> str:
     chapter_index = "\n".join(
-        f"| [ch{number:02d}](chapters/{filename}) | {title} | {concepts or 'core ideas'} |"
-        for number, title, filename, concepts in chapters
+        f"| [ch{number:02d}](chapters/{filename}) | {chapter_title} | {concepts or strings.core_ideas} |"
+        for number, chapter_title, filename, concepts in chapters
     )
-    topic_index = "\n".join(topic_rows or ["- **Overview** -> ch01"])
+    topic_index = "\n".join(topic_rows or [f"- **{strings.topic_overview}** -> ch01"])
     return (
         f"---\n"
         f"name: {skill_slug}\n"
-        f'description: "Evidence-backed skill compiled from {title}. Use when you need chapter-level guidance, concepts, and decision rules from this source."\n'
+        f'description: "{strings.skill_description.format(title=title)}"\n'
         f"---\n\n"
         f"# {title}\n\n"
-        f"**Author:** {author}\n\n"
-        f"## How to Use This Skill\n\n"
-        f"- Ask for a topic to jump to the matching chapter.\n"
-        f"- Read `references/evidence-map.md` when you need traceable support.\n"
-        f"- Use `references/cheatsheet.md` for quick decisions.\n\n"
-        f"## Chapter Index\n\n"
-        f"| Chapter | Title | Key Concepts |\n"
+        f"**{strings.author_label}:** {author}\n\n"
+        f"## {strings.how_to_use}\n\n"
+        f"- {strings.use_topic_jump}\n"
+        f"- {strings.use_evidence_map}\n"
+        f"- {strings.use_cheatsheet}\n\n"
+        f"## {strings.chapter_index}\n\n"
+        f"| {strings.chapter_col} | {strings.title_col} | {strings.key_concepts_col} |\n"
         f"|---|---|---|\n"
         f"{chapter_index}\n\n"
-        f"## Topic Index\n\n"
+        f"## {strings.topic_index}\n\n"
         f"{topic_index}\n\n"
-        f"## Supporting Files\n\n"
+        f"## {strings.supporting_files}\n\n"
         f"- [references/concepts.md](references/concepts.md)\n"
         f"- [references/cheatsheet.md](references/cheatsheet.md)\n"
         f"- [references/evidence-map.md](references/evidence-map.md)\n"
     )
 
 
-def slugify(value: str) -> str:
-    return re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9]+", "-", value.lower())).strip("-") or "book-skill"
+def slugify(value: str, fallback: str = "section") -> str:
+    return re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9]+", "-", value.lower())).strip("-") or fallback
 
 
 def normalize_whitespace(value: str) -> str:
@@ -361,45 +482,55 @@ def dedupe_keep_order(items: Iterable[str]) -> list[str]:
     return ordered
 
 
-def render_validation_report(report: dict, source_path: Path, skill_slug: str) -> str:
+def render_validation_report(report: dict, source_path: Path, skill_slug: str, strings: Strings) -> str:
     checks = "\n".join(
-        f"- **{name}**: {'pass' if passed else 'fail'}" for name, passed in report["checks"].items()
+        f"- **{name}**: {strings.validation_pass if passed else strings.validation_fail}"
+        for name, passed in report["checks"].items()
     )
-    missing = "\n".join(f"- `{item}`" for item in report["missing"]) or "- None"
-    broken_links = "\n".join(f"- `{item}`" for item in report["broken_links"]) or "- None"
+    missing = "\n".join(f"- `{item}`" for item in report["missing"]) or f"- {strings.validation_none}"
+    broken_links = "\n".join(f"- `{item}`" for item in report["broken_links"]) or f"- {strings.validation_none}"
+    status = strings.validation_pass if report["ok"] else strings.validation_fail
     return (
-        "# Validation Report\n\n"
-        f"- **Skill slug**: `{skill_slug}`\n"
-        f"- **Source**: `{source_path}`\n"
-        f"- **Overall score**: {report['score']}\n"
-        f"- **Status**: {'pass' if report['ok'] else 'fail'}\n\n"
-        "## Checks\n\n"
+        f"# {strings.validation_title}\n\n"
+        f"- **{strings.validation_skill_slug}**: `{skill_slug}`\n"
+        f"- **{strings.validation_source}**: `{source_path}`\n"
+        f"- **{strings.validation_score}**: {report['score']}\n"
+        f"- **{strings.validation_status}**: {status}\n\n"
+        f"## {strings.validation_checks}\n\n"
         f"{checks}\n\n"
-        "## Missing Files\n\n"
+        f"## {strings.validation_missing}\n\n"
         f"{missing}\n\n"
-        "## Broken Links\n\n"
+        f"## {strings.validation_broken}\n\n"
         f"{broken_links}\n"
     )
 
 
-def render_validation_html(report: dict, source_path: Path, skill_slug: str) -> str:
+def render_validation_html(
+    report: dict,
+    source_path: Path,
+    skill_slug: str,
+    strings: Strings,
+    lang: str,
+) -> str:
     rows = "\n".join(
         "<tr>"
         f"<td>{name}</td>"
-        f"<td class=\"{'pass' if passed else 'fail'}\">{'pass' if passed else 'fail'}</td>"
+        f"<td class=\"{'pass' if passed else 'fail'}\">"
+        f"{strings.validation_pass if passed else strings.validation_fail}"
+        f"</td>"
         "</tr>"
         for name, passed in report["checks"].items()
     )
-    missing = "".join(f"<li><code>{item}</code></li>" for item in report["missing"]) or "<li>None</li>"
-    broken = "".join(f"<li><code>{item}</code></li>" for item in report["broken_links"]) or "<li>None</li>"
+    missing = "".join(f"<li><code>{item}</code></li>" for item in report["missing"]) or f"<li>{strings.validation_none}</li>"
+    broken = "".join(f"<li><code>{item}</code></li>" for item in report["broken_links"]) or f"<li>{strings.validation_none}</li>"
     status_class = "pass" if report["ok"] else "fail"
-    status_label = "pass" if report["ok"] else "fail"
+    status_label = strings.validation_pass if report["ok"] else strings.validation_fail
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{lang}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BookSkill Studio Validation Report</title>
+    <title>{strings.html_title}</title>
     <style>
       :root {{
         --bg: #f4efe7;
@@ -494,32 +625,32 @@ def render_validation_html(report: dict, source_path: Path, skill_slug: str) -> 
   <body>
     <main>
       <section class="hero">
-        <h1>Validation Report</h1>
-        <p>Human-readable proof that the generated skill package is structurally sound and ready for local installation.</p>
+        <h1>{strings.validation_title}</h1>
+        <p>{strings.html_intro}</p>
         <div class="score">
           <strong>{report["score"]}/100</strong>
           <span class="badge {status_class}">{status_label}</span>
         </div>
         <div class="grid">
           <div class="card">
-            <h2>Source</h2>
+            <h2>{strings.validation_source}</h2>
             <p><code>{source_path}</code></p>
           </div>
           <div class="card">
-            <h2>Skill Slug</h2>
+            <h2>{strings.validation_skill_slug}</h2>
             <p><code>{skill_slug}</code></p>
           </div>
           <div class="card">
-            <h2>Coverage</h2>
-            <p>{report["chapter_count"]} chapters, {report["evidence_sections"]} evidence sections.</p>
+            <h2>{strings.html_coverage}</h2>
+            <p>{strings.html_chapters.format(chapter_count=report["chapter_count"], evidence_sections=report["evidence_sections"])}</p>
           </div>
         </div>
       </section>
       <section class="card" style="margin-top: 22px;">
-        <h2>Checks</h2>
+        <h2>{strings.validation_checks}</h2>
         <table>
           <thead>
-            <tr><th>Check</th><th>Status</th></tr>
+            <tr><th>{strings.html_check_col}</th><th>{strings.html_status_col}</th></tr>
           </thead>
           <tbody>
             {rows}
@@ -528,11 +659,11 @@ def render_validation_html(report: dict, source_path: Path, skill_slug: str) -> 
       </section>
       <section class="grid">
         <div class="card">
-          <h2>Missing Files</h2>
+          <h2>{strings.validation_missing}</h2>
           <ul>{missing}</ul>
         </div>
         <div class="card">
-          <h2>Broken Links</h2>
+          <h2>{strings.validation_broken}</h2>
           <ul>{broken}</ul>
         </div>
       </section>

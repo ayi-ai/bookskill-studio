@@ -16,15 +16,18 @@ from bookskill_studio.validator import validate_skill_dir
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compile books into evidence-backed agent skills.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    lang_help = "Output language: en, zh, or auto (detect from source text)."
 
     demo = subparsers.add_parser("demo", help="Run the built-in demo book.")
     demo.add_argument("--output", default="demo-output", help="Output directory.")
+    demo.add_argument("--lang", choices=["en", "zh", "auto"], default="auto", help=lang_help)
     add_install_arguments(demo)
 
     run = subparsers.add_parser("run", help="Compile a book into a skill.")
     run.add_argument("input", help="Input .md, .txt, .epub, or .pdf file.")
     run.add_argument("--output", required=True, help="Output directory.")
     run.add_argument("--skill-name", help="Optional skill slug override.")
+    run.add_argument("--lang", choices=["en", "zh", "auto"], default="auto", help=lang_help)
     add_install_arguments(run)
 
     validate = subparsers.add_parser("validate", help="Validate a generated skill directory.")
@@ -40,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("skill_dir", help="Existing compiled skill directory.")
     update.add_argument("input", help="New .md, .txt, .epub, or .pdf source.")
     update.add_argument("--skill-name", help="Optional skill slug override.")
+    update.add_argument("--lang", choices=["en", "zh", "auto"], default="auto", help=lang_help)
 
     open_report = subparsers.add_parser("open-report", help="Open the generated HTML validation report in a browser.")
     open_report.add_argument("path", help="Path to the compiled skill directory.")
@@ -59,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             demo_source,
             Path(args.output),
             None,
+            lang=args.lang,
             install=args.install,
             target=args.target,
             skills_home=args.skills_home,
@@ -69,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.input),
             Path(args.output),
             args.skill_name,
+            lang=args.lang,
             install=args.install,
             target=args.target,
             skills_home=args.skills_home,
@@ -88,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": True, "installed_to": str(destination)}, indent=2, ensure_ascii=True))
         return 0
     if args.command == "update":
-        return run_update(Path(args.skill_dir), Path(args.input), args.skill_name)
+        return run_update(Path(args.skill_dir), Path(args.input), args.skill_name, lang=args.lang)
     if args.command == "open-report":
         return run_open_report(Path(args.path))
     if args.command == "doctor":
@@ -110,6 +116,7 @@ def run_compile(
     input_path: Path,
     output_dir: Path,
     skill_name: str | None,
+    lang: str,
     install: bool,
     target: str | None,
     skills_home: str | None,
@@ -127,7 +134,7 @@ def run_compile(
     print("[1/4] Reading source")
     print(f"       Source: {input_path}")
     print("[2/4] Compiling skill package")
-    report = compile_book(input_path, output_dir, skill_name)
+    report = compile_book(input_path, output_dir, skill_name, lang=lang)
     print("[3/4] Writing validation report")
     print(f"[4/4] Finished with score {report['score']}")
     print(f"       Output: {output_dir}")
@@ -142,7 +149,7 @@ def run_compile(
     return 0 if report["ok"] else 1
 
 
-def run_update(skill_dir: Path, input_path: Path, skill_name: str | None) -> int:
+def run_update(skill_dir: Path, input_path: Path, skill_name: str | None, lang: str = "auto") -> int:
     if not skill_dir.exists():
         raise SystemExit(f"Skill directory not found: {skill_dir}")
     if not input_path.exists():
@@ -154,7 +161,7 @@ def run_update(skill_dir: Path, input_path: Path, skill_name: str | None) -> int
     print("[1/4] Reading existing skill")
     print(f"       Skill: {skill_dir}")
     print("[2/4] Folding in new source")
-    report = update_book(skill_dir, input_path, skill_name)
+    report = update_book(skill_dir, input_path, skill_name, lang=lang)
     print("[3/4] Re-validating updated skill")
     print(f"[4/4] Finished with score {report['score']}")
     print(f"       Output: {skill_dir}")

@@ -1,5 +1,7 @@
 # BookSkill Studio
 
+[中文文档](README.zh-CN.md)
+
 Turn any book or long doc into an evidence-backed agent skill in under five minutes.
 
 BookSkill Studio is a small, deterministic CLI for turning source material into:
@@ -45,7 +47,10 @@ Compile your own file:
 
 ```bash
 python3 -m bookskill_studio run examples/demo-book.md --output my-book-skill --install --target codex
+python3 -m bookskill_studio run my-book.md --output my-book-skill --lang zh
 ```
+
+Use `--lang auto` (default), `--lang en`, or `--lang zh` to control generated skill language. See [README.zh-CN.md](README.zh-CN.md) for Chinese docs.
 
 Fold in a new source later:
 

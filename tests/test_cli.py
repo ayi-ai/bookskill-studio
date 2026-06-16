@@ -207,6 +207,48 @@ def test_open_report_command_accepts_relative_path(tmp_path: Path) -> None:
     assert "Opened report:" in result.stdout
 
 
+def test_chinese_pipeline(tmp_path: Path) -> None:
+    source = tmp_path / "chinese-book.md"
+    source.write_text(
+        """# 示例书籍
+
+作者：测试作者
+
+## 第一章 为什么需要编译步骤
+
+当团队需要长期复用一本书时，应该先把章节结构整理成可安装的 Skill 包。
+优先使用结构化输出，便于后续校验与安装。
+
+## 第二章 设计可复用结构
+
+使用证据映射表，可以让每个概念都指回原文出处。
+""",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "zh-output"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "bookskill_studio",
+            "run",
+            str(source),
+            "--output",
+            str(output_dir),
+            "--lang",
+            "zh",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    skill_text = (output_dir / "SKILL.md").read_text(encoding="utf-8")
+    manifest = json.loads((output_dir / "bookskill-manifest.json").read_text(encoding="utf-8"))
+    report = json.loads((output_dir / "validation-report.json").read_text(encoding="utf-8"))
+    assert "如何使用本 Skill" in skill_text
+    assert manifest["lang"] == "zh"
+    assert report["ok"] is True
+
+
 def build_epub_fixture(epub_path: Path) -> None:
     with zipfile.ZipFile(epub_path, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip")
