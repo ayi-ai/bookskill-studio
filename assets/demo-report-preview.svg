@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="360" viewBox="0 0 520 360" role="img" aria-label="Validation report preview">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fbf7f1"/>
+      <stop offset="100%" stop-color="#f4efe7"/>
+    </linearGradient>
+  </defs>
+  <rect width="520" height="360" rx="18" fill="url(#page)" stroke="#d7cfc1"/>
+  <rect x="24" y="24" width="472" height="312" rx="16" fill="rgba(255,255,255,0.82)" stroke="#d7cfc1"/>
+  <text x="48" y="64" font-family="Georgia, serif" font-size="28" fill="#1f2933">Validation Report</text>
+  <text x="48" y="92" font-family="Georgia, serif" font-size="14" fill="#6b7280">Structurally sound and ready to install.</text>
+  <rect x="48" y="112" width="168" height="42" rx="21" fill="#fff" stroke="#d7cfc1"/>
+  <text x="72" y="139" font-family="Menlo, monospace" font-size="18" fill="#1f2933">100/100</text>
+  <rect x="228" y="118" width="72" height="30" rx="15" fill="rgba(31,122,77,0.12)"/>
+  <text x="264" y="138" text-anchor="middle" font-family="Menlo, monospace" font-size="12" fill="#1f7a4d">PASS</text>
+  <rect x="48" y="176" width="130" height="120" rx="14" fill="#fff9f0" stroke="#d7cfc1"/>
+  <rect x="196" y="176" width="130" height="120" rx="14" fill="#fff9f0" stroke="#d7cfc1"/>
+  <rect x="344" y="176" width="128" height="120" rx="14" fill="#fff9f0" stroke="#d7cfc1"/>
+  <text x="113" y="206" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#1f2933">Source</text>
+  <text x="261" y="206" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#1f2933">Skill Slug</text>
+  <text x="408" y="206" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#1f2933">Coverage</text>
+  <text x="113" y="244" text-anchor="middle" font-family="Menlo, monospace" font-size="11" fill="#6b7280">demo-book.md</text>
+  <text x="261" y="244" text-anchor="middle" font-family="Menlo, monospace" font-size="11" fill="#6b7280">bookskill-studio</text>
+  <text x="408" y="244" text-anchor="middle" font-family="Menlo, monospace" font-size="11" fill="#6b7280">3 chapters</text>
+  <rect x="48" y="312" width="424" height="8" rx="4" fill="#e5e7eb"/>
+  <rect x="48" y="312" width="424" height="8" rx="4" fill="#1f7a4d"/>
+</svg>

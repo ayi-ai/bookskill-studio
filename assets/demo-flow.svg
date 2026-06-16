@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="160" viewBox="0 0 920 160" role="img" aria-label="BookSkill Studio flow">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbf7f1"/>
+      <stop offset="100%" stop-color="#f4efe7"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#3f2a17" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+  <rect width="920" height="160" rx="18" fill="url(#bg)" stroke="#d7cfc1"/>
+  <g filter="url(#shadow)">
+    <rect x="36" y="36" width="210" height="88" rx="14" fill="#fff9f0" stroke="#d7cfc1"/>
+    <text x="141" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#1f2933">Source Book</text>
+    <text x="141" y="94" text-anchor="middle" font-family="Menlo, monospace" font-size="13" fill="#6b7280">.md · .epub · .pdf</text>
+  </g>
+  <text x="286" y="86" text-anchor="middle" font-family="Menlo, monospace" font-size="28" fill="#c96f2d">’</text>
+  <g filter="url(#shadow)">
+    <rect x="318" y="28" width="284" height="104" rx="14" fill="#1f2933" stroke="#374151"/>
+    <text x="460" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#f9fafb">BookSkill Studio</text>
+    <text x="460" y="88" text-anchor="middle" font-family="Menlo, monospace" font-size="13" fill="#9ca3af">demo · validate · install</text>
+    <text x="460" y="112" text-anchor="middle" font-family="Menlo, monospace" font-size="12" fill="#34d399">--lang en | zh | auto</text>
+  </g>
+  <text x="632" y="86" text-anchor="middle" font-family="Menlo, monospace" font-size="28" fill="#c96f2d">’</text>
+  <g filter="url(#shadow)">
+    <rect x="664" y="36" width="220" height="88" rx="14" fill="#fff9f0" stroke="#d7cfc1"/>
+    <text x="774" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#1f2933">Agent Skill</text>
+    <text x="774" y="94" text-anchor="middle" font-family="Menlo, monospace" font-size="13" fill="#6b7280">SKILL.md + chapters/</text>
+  </g>
+</svg>

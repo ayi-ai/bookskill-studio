@@ -1,6 +1,15 @@
 # BookSkill Studio
 
 <p align="center">
+  <a href="https://github.com/ayi-ai/bookskill-studio/actions/workflows/ci.yml"><img src="https://github.com/ayi-ai/bookskill-studio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/ayi-ai/bookskill-studio/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ayi-ai/bookskill-studio?label=license" alt="License"></a>
+  <img src="https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white" alt="Python">
+  <a href="https://github.com/ayi-ai/bookskill-studio/releases"><img src="https://img.shields.io/github/v/release/ayi-ai/bookskill-studio?label=release" alt="Release"></a>
+  <img src="https://img.shields.io/badge/lang-en%20%7C%20zh-auto-orange" alt="Languages">
+  <img src="https://img.shields.io/badge/install-codex%20%7C%20claude%20%7C%20cursor-blue" alt="Install targets">
+</p>
+
+<p align="center">
   <a href="README.md#english"><strong>English</strong></a>
   &nbsp;·&nbsp;
   <a href="README.md#zh"><strong>中文（完整版）</strong></a>
@@ -31,7 +40,24 @@ BookSkill Studio 是一个轻量 CLI，能把源材料变成：
 
 ## Demo 预览
 
-![BookSkill Studio demo preview](assets/demo-terminal-v3.png)
+<p align="center">
+  <img src="assets/demo-flow.svg" alt="书籍到 Skill 的流程" width="920" />
+</p>
+
+<table>
+  <tr>
+    <td width="58%" align="center" valign="top">
+      <strong>终端运行</strong><br><br>
+      <img src="assets/demo-terminal-v3.png" alt="BookSkill Studio 终端演示" width="100%" />
+    </td>
+    <td width="42%" align="center" valign="top">
+      <strong>校验报告</strong><br><br>
+      <img src="assets/demo-report-preview.svg" alt="校验报告预览" width="100%" />
+    </td>
+  </tr>
+</table>
+
+<p align="center"><sub>需要动图时：安装 <a href="https://github.com/charmbracelet/vhs">vhs</a> 后运行 <code>./scripts/generate-demo-gif.sh</code></sub></p>
 
 ## 使用前 / 使用后
 
