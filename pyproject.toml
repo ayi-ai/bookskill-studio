@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bookskill-studio"
+version = "0.1.0"
+description = "Turn books into evidence-backed agent skills."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Weiwill" }
+]
+dependencies = []
+
+[project.scripts]
+bookskill = "bookskill_studio.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bookskill_studio*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

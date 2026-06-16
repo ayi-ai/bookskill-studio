@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: python -m pip install -e . pytest
+      - name: Run doctor
+        run: python -m bookskill_studio doctor
+      - name: Run demo compiler
+        run: python -m bookskill_studio demo --output demo-output
+      - name: Validate demo output
+        run: python -m bookskill_studio validate demo-output
+      - name: Install demo output into a temp skill home
+        run: python -m bookskill_studio install demo-output --skills-home /tmp/bookskill-ci-skills --name ci-demo-skill
+      - name: Run tests
+        run: python -m pytest
